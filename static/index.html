@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Reverse Image Search</title>
+<style>
+body{font:17px system-ui;max-width:1000px;margin:40px auto;padding:0 20px;background:#f5f7fa;color:#18283b}
+form{padding:24px;background:white;border-radius:12px}button,input{margin:8px;padding:8px}
+#results{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+figure{margin:0;padding:12px;background:white;border-radius:10px}img{width:100%;height:180px;object-fit:contain}
+</style>
+<h1>Reverse Image Search</h1><p>Find visually similar images using ResNet50 embeddings and FAISS.</p>
+<form id="search"><label>Query image <input name="file" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" required></label>
+<label>Results <input id="top-k" type="number" min="1" max="50" value="10" required></label><button>Search</button></form>
+<p id="status" role="status" aria-live="polite">Upload an image up to 8 MiB.</p><div id="results"></div>
+<script>
+document.querySelector('#search').addEventListener('submit',async event=>{
+ event.preventDefault();const status=document.querySelector('#status'), results=document.querySelector('#results');
+ results.replaceChildren();status.textContent='Searching…';
+ try{
+  const response=await fetch('/search?top_k='+encodeURIComponent(document.querySelector('#top-k').value),{method:'POST',body:new FormData(event.target)});
+  const body=await response.json();if(!response.ok)throw new Error(typeof body.detail==='string'?body.detail:'Check the image and result count.');
+  for(const [rank,item] of body.results.entries()){
+   const figure=document.createElement('figure'), img=document.createElement('img'), caption=document.createElement('figcaption');
+   img.src=item.image_url;img.alt='Retrieved image '+(rank+1);img.loading='lazy';
+   caption.textContent='#'+(rank+1)+' · squared L2 '+item.distance.toFixed(4);figure.append(img,caption);results.append(figure);
+  }status.textContent=body.results.length+' similar images. Lower distance means greater similarity.';
+ }catch(error){status.textContent=error.message;}
+});
+</script></html>
