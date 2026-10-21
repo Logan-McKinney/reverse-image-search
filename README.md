@@ -1,23 +1,19 @@
 # Reverse Image Search
 
-Find similar images in a local collection using ImageNet ResNet50 embeddings,
-FAISS nearest-neighbor retrieval, and a FastAPI browser gallery.
+A group project that finds visually similar images in a local collection using **ResNet50 embeddings and FAISS nearest-neighbor search**. A FastAPI backend serves a browser gallery where you can upload a query image and explore its closest matches. The original project was developed by **Logan McKinney, Patrick Conley, and Greg Pologruto**.
 
-## Methods and fixes
+## How it works
 
-Images share one decode/EXIF orientation/RGB/224x224 bilinear/ResNet50 preprocessing
-pipeline. Global-average-pooled embeddings are L2 normalized; IndexFlatL2 ranks
-by squared Euclidean distance (lower is closer). Index rows and JSON metadata are
-appended together after successful extraction, fixing the original enumeration-ID
-mismatch when non-images or corrupt files occur. Offline building is separate from
-serving. Safe IDs route to sanitized RGB PNG copies; API responses contain no local paths.
-No pickle is used. Artifact loading checks format, dimensions, counts and index checksum.
+1. Decode images, apply EXIF orientation, convert to RGB, and resize to 224×224 with consistent ResNet50 preprocessing.
+2. Extract global-average-pooled ResNet50 features and L2-normalize each embedding.
+3. Store vectors in a FAISS `IndexFlatL2` index and keep matching image metadata alongside it.
+4. Embed an uploaded image, retrieve its nearest neighbors, and display gallery copies. Lower squared Euclidean distance means a closer embedding.
+
+The repository adapts our original `Checkpoint2.ipynb` into separate index-building and API modules. Later Codex-assisted cleanup added consistent preprocessing, corrected metadata alignment when files are skipped, safe image IDs, and functional tests. See [attribution](ATTRIBUTION.md).
 
 ## Setup and use
 
-Use a Python version supported by your TensorFlow/FAISS wheels (Python 3.11 or 3.12
-is a practical starting point). Reuse a compatible environment when available.
-Install dependencies only if needed; the following command includes TensorFlow.
+Uses Python, TensorFlow/Keras, FAISS, FastAPI, Uvicorn, and Pillow. Choose a Python version supported by the TensorFlow and FAISS wheels you install. From the repository root in PowerShell:
 
 ```powershell
 python -m venv .venv
@@ -27,45 +23,16 @@ python build_index.py --images "<local-image-directory>" --output artifacts/inde
 python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000, upload an image, and select 1–50 neighbors.
-The API accepts multipart `file` at `POST /search?top_k=10` and returns `results`
-with `id`, `distance`, and `image_url`. OpenAPI documentation is at `/docs`.
-For a different index, set `SEARCH_INDEX_DIR` before starting uvicorn.
-Run commands from this project folder. First use of ResNet50 can download ImageNet
-weights into the normal Keras cache; no weights are bundled.
+Open [the gallery](http://127.0.0.1:8000), upload an image, and select 1–50 neighbors. The API accepts a multipart `file` at `POST /search?top_k=10`; [interactive API docs](http://127.0.0.1:8000/docs) describe the response. Set `SEARCH_INDEX_DIR` to serve a different index.
 
-The builder recursively reads JPEG/PNG/WebP/BMP files; unsupported and corrupt
-images are ignored. Oversized images are skipped. It rejects an empty collection,
-an existing output, or output inside the input folder. Choose a new output and
-restart the server to switch indexes. `build-report.json` records indexed/skipped
-counts. Gallery copies take additional disk space but discard EXIF and local paths.
+The builder recursively reads JPEG, PNG, WebP, and BMP files, skipping unsupported, corrupt, or oversized images. Use a new output directory outside the input folder; `build-report.json` records indexed/skipped counts. First use can download ImageNet weights to the Keras cache. Supply images you have permission to use; datasets, indexes, gallery copies, and weights are excluded from Git.
 
-## Tests and results
+## Tests and limitations
 
-```powershell
+```sh
 python -m unittest discover -s tests -v
 ```
 
-Tests use real FAISS with deterministic synthetic vectors and generated tiny images;
-they need no TensorFlow import, ImageNet weights, dataset or GPU. Coverage includes
-row mapping after skips, artifact round-trip/corruption, nearest-neighbor order,
-top-k capping, RGB conversion, empty indexes, upload validation and image serving.
-See VERIFICATION.md for the actual execution evidence. No retrieval-quality metric
-has been measured on a labeled real-image benchmark.
+The saved verification run passed **6 functional tests**, covering metadata alignment, index persistence and corruption checks, neighbor order, image conversion, upload validation, and gallery responses. Tests use real FAISS with synthetic vectors and tiny generated images, without loading ResNet50 weights. See [testing notes](TESTING.md).
 
-## Limitations
-
-This is a local portfolio demo. It has no authentication, rate limiting or relevance
-labels. Inference is serialized to limit model concurrency. Uploads are limited to
-8 MiB and 20 million decoded pixels; for public deployment also enforce request-body
-limits at a reverse proxy (multipart parsing happens before endpoint validation).
-Load only locally built, trusted FAISS artifacts: checksums detect inconsistency,
-not malicious artifact replacement. Images must be ones you have permission to use.
-ImageNet similarity may miss domain-specific semantics. The real pretrained path
-still requires a smoke test with user images and cached/downloadable weights.
-
-## Attribution
-
-Adapted from `Checkpoint2.ipynb`, preserving the original ResNet50 + FAISS + FastAPI
-design. See ATTRIBUTION.md for source provenance and unresolved author/license details.
-Datasets, indexes, weights and private paths are excluded from the publication copy.
+No quantitative retrieval-accuracy benchmark has been established, and the pretrained real-image pipeline was not executed during cleanup. ImageNet features can miss domain-specific similarity. This is a local demo with no authentication or rate limiting; load only trusted, locally built indexes. Uploads are limited to 8 MiB and 20 million decoded pixels.

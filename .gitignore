@@ -27,3 +27,12 @@ runs/
 *.bmp
 *.tif
 *.tiff
+
+# Local settings, credentials, and bytecode
+*.py[cod]
+*.pem
+*.key
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
